@@ -128,7 +128,7 @@ class SFTDataset(MegatronDataset):
         else:
             padding_len = max_seq_len - num_tokens
         assert padding_len >= 0
-        filler = [1] * force_eod_length + [1] * (padding_len + 1)
+        filler = [tokenizer.eod] * force_eod_length + [tokenizer.pad] * (padding_len + 1)
 
         tokens = np.array(tokens.tolist() + filler, dtype=np.int64)
         target = np.array(target.tolist() + filler, dtype=np.int64)
@@ -141,7 +141,7 @@ class SFTDataset(MegatronDataset):
         seq_len = tokens.numel()
 
         loss_mask, position_ids, attention_mask = self._get_ltor_masks_and_position_ids(
-            seq_len, target, 1
+            seq_len, target, tokenizer.pad
         )
 
         if self.config.create_attention_mask:
@@ -162,7 +162,7 @@ class SFTDataset(MegatronDataset):
 
         if sft_sequence_packing:
             # sequence packing need both original sequence length and padded length
-            ret['original_seq_len'] = torch.tensor(num_tokens, dtype=torch.int32)
+            ret['original_seq_len'] = torch.tensor(num_tokens, dtype=torch.int32, device=tokens.device)
 
         return ret
 
@@ -232,13 +232,11 @@ class MockSFTLowLevelDataset:
                 self.sequence_lengths = self.generate_lognormal_samples(self.size, mean_seq_len,lognormal_sigma, min_seq_len, max_seq_len)
             elif config["type"] == "linear":
                 self.sequence_lengths = self.generate_linear_samples(self.size, min_seq_len, max_seq_len)
-                print(f"{self.sequence_lengths=}")
             else:
                 raise ValueError(f"Unsupported sequence length distribution type {config['type']}")
 
     def generate_linear_samples(self, size, min_seq_len, max_seq_len, step=256):
         samples = np.arange(min_seq_len, max_seq_len, step)
-        print(f"{size=}, {min_seq_len=}, {max_seq_len=}, {samples=}")
         return samples.astype(int)   
         
     def generate_lognormal_samples(self, size, mean, sigma, min_seq_len, max_seq_len):   
@@ -252,7 +250,7 @@ class MockSFTLowLevelDataset:
 
     def __getitem__(self, idx: int) -> List[np.ndarray]:
         if hasattr(self, "dataset") and self.dataset is not None:
-            return self.dataset[idx]
+            return self.dataset[idx % self.size]
         length = self.sequence_lengths[idx % len(self.sequence_lengths)]
         # the length of sample is 'length', but only length-1 elements are generated here, 
         # because an eod token will be appended at the end later in SFTDataset
@@ -295,7 +293,6 @@ class MockSFTDataset(SFTDataset):
         num_microbatch_left = -1
         cp_size = -1
         if isinstance(idx, tuple):
-            # print(f"{idx=}")
             if len(idx) == 2:
                 idx, num_microbatch_left = idx
             elif len(idx) == 3:
@@ -307,9 +304,8 @@ class MockSFTDataset(SFTDataset):
 
         tokens = self.dataset[int(self.indices[idx % len(self.indices)])]
         target = np.array(tokens, dtype=np.int64)
-        
-        # force_eod_length = int(tokenizer.force_eod)
-        force_eod_length = 1
+
+        force_eod_length = int(tokenizer.force_eod)
 
         if len(tokens) > max_seq_len - force_eod_length:
             # cut the right side
@@ -367,6 +363,6 @@ class MockSFTDataset(SFTDataset):
 
         if sft_sequence_packing:
             # sequence packing need both original sequence length and padded length
-            ret['original_seq_len'] = torch.tensor(num_tokens, dtype=torch.int32)
+            ret['original_seq_len'] = torch.tensor(num_tokens, dtype=torch.int32, device=tokens.device)
 
         return ret

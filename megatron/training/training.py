@@ -3047,21 +3047,19 @@ def build_train_valid_test_data_loaders(build_train_valid_test_datasets_provider
         if not args.skip_train:
             train_dataloader = build_pretraining_data_loader(train_ds, args.consumed_train_samples)
 
-        valid_dataloaders = None
-        test_dataloader = None
-        # valid_dataloaders = []
-        # for valid_d in valid_ds:
-        #     if args.skip_train or args.full_validation:
-        #         valid_dataloaders.append(build_pretraining_data_loader(valid_d, 0))
-        #     else:
-        #         if args.multiple_validation_sets:
-        #             # TODO(bnorick): for multiple validation sets without full validation, args.consumed_valid_samples is not
-        #             # correct and needs to be calculated/set per validation set
-        #             raise NotImplementedError("--multiple-validation-sets currently requires --full-validation")
-        #         valid_dataloaders.append(build_pretraining_data_loader(valid_d, args.consumed_valid_samples))
-        # if not args.multiple_validation_sets:
-        #     assert len(valid_dataloaders) == 1
-        # test_dataloader = build_pretraining_data_loader(test_ds, 0)
+        valid_dataloaders = []
+        for valid_d in valid_ds:
+            if args.skip_train or args.full_validation:
+                valid_dataloaders.append(build_pretraining_data_loader(valid_d, 0))
+            else:
+                if args.multiple_validation_sets:
+                    # TODO(bnorick): for multiple validation sets without full validation, args.consumed_valid_samples is not
+                    # correct and needs to be calculated/set per validation set
+                    raise NotImplementedError("--multiple-validation-sets currently requires --full-validation")
+                valid_dataloaders.append(build_pretraining_data_loader(valid_d, args.consumed_valid_samples))
+        if not args.multiple_validation_sets:
+            assert len(valid_dataloaders) == 1
+        test_dataloader = build_pretraining_data_loader(test_ds, 0)
 
         # Flags to know if we need to do training/validation/testing.
         do_train = train_dataloader is not None and args.train_iters > 0

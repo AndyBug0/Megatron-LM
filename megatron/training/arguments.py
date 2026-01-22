@@ -118,15 +118,6 @@ def parse_args(extra_args_provider=None, ignore_unknown_args=False):
     args.rank = int(os.getenv('RANK', '0'))
     args.world_size = int(os.getenv("WORLD_SIZE", '1'))
 
-    # launch from mpi
-    if int(os.getenv('OMPI_COMM_WORLD_SIZE', '0')) > 0:
-        args.rank = int(os.environ['OMPI_COMM_WORLD_RANK'])
-        args.local_rank = int(os.environ['OMPI_COMM_WORLD_LOCAL_RANK'])
-        args.world_size = int(os.environ['OMPI_COMM_WORLD_SIZE'])
-        addr, port = args.master_addr.split(':')
-        os.environ['MASTER_ADDR'] = addr
-        os.environ['MASTER_PORT'] = port
-        delattr(args, 'master_addr')
 
     # Args to disable MSC
     if not args.enable_msc:
@@ -977,7 +968,6 @@ def validate_args(args, defaults={}):
         assert not args.enable_cuda_graph, 'Hybrid context parallelism not supported with CUDA Graph'
         assert args.dataloader_type == 'single', 'Hybrid context parallelism only supported with single dataloader type'
         assert args.calculate_per_token_loss, 'Hybrid context parallelism must be used with --calculate-per-token-loss'
-        # assert args.context_parallel_size == 1, 'context parallel size must be 1 for hybrid context parallelism'
 
     if args.sft_sequence_packing:
         # Validate that packed sequence buffer is large enough for single sequences
@@ -2253,10 +2243,6 @@ def _add_training_args(parser):
                        help='Global step to start profiling.')
     group.add_argument('--profile-step-end', type=int, default=6,
                        help='Global step to stop profiling.')
-    group.add_argument('--profile-memory', action='store_true',
-                       default=False, help='Record memory info for analysis purpose. ')
-    group.add_argument('--profile-memory-path', type=str, default=None,
-                       help='filepath to saveRecord memory info. ')
     group.add_argument('--iterations-to-skip', nargs='+', type=int, default=[],
                        help='List of iterations to skip, empty by default.')
     group.add_argument('--result-rejected-tracker-filename', type=str, default=None,
@@ -2762,8 +2748,6 @@ def _add_mixed_precision_args(parser):
 def _add_distributed_args(parser):
     group = parser.add_argument_group(title='distributed')
 
-    group.add_argument('--master-addr', type=str, default='127.0.0.1:8389',
-                       help='master add.')
     group.add_argument('--tensor-model-parallel-size', type=int, default=1,
                        help='Degree of tensor model parallelism.')
     group.add_argument('--pipeline-model-parallel-size', type=int, default=1,
@@ -2943,17 +2927,6 @@ def _add_distributed_args(parser):
                         'balanced_with_pp: balanced scheduler for hybrid context parallel with pipeline parallel. '
                         'only_packing_no_scheduling: scheduling is already handled by the data sampler, '
                         'this scheduler only performs packing.')
-    group.add_argument('--async-hybrid-context-parallel-scheduler', action='store_true',
-                       default=False, help='Use asynchronize context parallel scheduler to avoid scheduler execution and extra communication time. ')
-    group.add_argument('--run-memory-simulator', action='store_true',
-                       default=False, help='run memory simulator for pp scheduler. ')
-    group.add_argument('--search-space', nargs='+', type=int, default=[1,2,3,4,5,6],
-                       help='search space for `PipelineAwareBalancedHybridCPscheduler`, '
-                       'if only one param, it means the range of the search space.'
-                       'For example, 4 means choose PP*1, PP*2, PP*3, PP*4 to search.'
-                       'if more than one param, it means the selected number of microbatch to search.'
-                       'For example, [1,2,3,4] means choose PP*1, PP*2, PP*3, PP*4 to search'
-                       '[2,4] means only choose PP*2 and PP*4 to search.')
     group.add_argument('--nccl-communicator-config-path', type=str, default=None,
                        help='Path to the yaml file with NCCL communicator '
                        'configurations. The number of min/max thread groups and thread '

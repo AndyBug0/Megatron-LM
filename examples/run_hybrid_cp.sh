@@ -38,7 +38,7 @@ MAX_CP=8
 NUM_LAYERS=8
 
 MBZ=1
-BZ=2048
+BZ=128
 HIDDEN_SIZE=5120
 FFN_HIDDEN_SIZE=13824
 HEAD_DIM=128
@@ -366,6 +366,8 @@ mpirun --allow-run-as-root --noprefix \
         -x NSYS_DIR=$NSYS_DIR \
         -x PATH \
         -x PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True\
+        -x MASTER_ADDR=$MASTER_ADDR \
+        -x MASTER_PORT=$MASTER_PORT \
         ${LD_LIBRARY_PATH:+-x LD_LIBRARY_PATH} \
         -x PYTHONPATH:$MEGATRON_PATH:$PYTHONPATH \
         -x CUDA_DEVICE_MAX_CONNECTIONS \
@@ -380,8 +382,7 @@ mpirun --allow-run-as-root --noprefix \
     with_nccl_local_env \
     python -u $MEGATRON_PATH/pretrain_gpt.py \
         ${OPTIONS} \
-        --distributed-backend nccl \
-        --master-addr ${MASTER_ADDR}:${MASTER_PORT}
+        --distributed-backend nccl
 
 
 exit 1

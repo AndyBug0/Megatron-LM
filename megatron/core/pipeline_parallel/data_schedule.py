@@ -416,17 +416,6 @@ def wrap_dataloader(
         else:
             data_iterator = data_iterator[0]
 
-    def cast_inputs_device(inputs, device, skip_device={}):
-        if isinstance(inputs, (list, tuple)):
-            return inputs.__class__(cast_inputs_device(v, device, skip_device) for v in inputs)
-        elif isinstance(inputs, dict):
-            return {k: v if k in skip_device else cast_inputs_device(v, device, skip_device=skip_device) for k, v in inputs.items()}
-        elif isinstance(inputs, torch.Tensor):
-            if not inputs.is_cuda:
-                inputs = inputs.to(device=device, non_blocking=True) # here input is expected to be pinned
-
-        return inputs
-
     if data_iterator is not None:
         # indicates TP rank 0, with PP stage 0 or -1.
         local_cp_size = None
@@ -437,7 +426,6 @@ def wrap_dataloader(
             # batch is a list of samples: List[MegatronDataset]
             batch = next(data_iterator)
             batch = cast_inputs_device(batch, dev)
-            # print(f"{batch=}")
             num_micro_batches = batch[0]["num_micro_batches_left"] + 1
 
             batch_all = [batch] + [next(data_iterator) for _ in range(num_micro_batches - 1)]
@@ -728,8 +716,6 @@ class NaiveSequencePackingScheduler(BaseScheduler):
 
         for i in range(len(sample_id_seqlens)):
             if sum_seqlen + sample_id_seqlens[i][1] <= self.max_seq_len_all_ranks:
-            # if flag and sum_seqlen + sample_id_seqlens[i][1] <= self.max_seq_len_all_ranks:
-                # flag = False
                 single_microbatch.append(i)
                 sum_seqlen += sample_id_seqlens[i][1]
             else:
@@ -754,7 +740,6 @@ class NaiveSequencePackingScheduler(BaseScheduler):
         # to the end of the microbatches if needed
         num_packed_sequence = len(packed_id_groups)
         if num_packed_sequence % self.dp_size != 0:
-            # print(f"{num_packed_sequence=}, {self.dp_size=}, {len(sample_id_seqlens)=}")
             remainder = num_packed_sequence % self.dp_size
             num_to_move = self.dp_size - remainder
             i = num_packed_sequence - 1
@@ -1254,9 +1239,6 @@ class BalancedHybridCPscheduler(BaseScheduler):
                 sample_ids.extend([] * (self.total_hdp_gpus - len(sample_ids)))
             sample_id_groups.append(sample_ids)
 
-        # if torch.distributed.get_rank() == 0:
-        #     breakpoint()
-        # torch.distributed.barrier()
         return groups, sample_id_groups
 
 
@@ -1619,7 +1601,6 @@ def assign_samples_to_buckets(
 
     for index in sorted_indices:
         if index in preassigned_samples:
-            print(f"{index=}, {preassigned_samples=}")
             continue
 
         min_score = float('inf')

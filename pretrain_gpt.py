@@ -7,7 +7,9 @@ from typing import List, Optional, Tuple
 
 import torch
 import os
+import sys
 import nvtx
+import resource
 
 from gpt_builders import gpt_builder
 from megatron.core import parallel_state
@@ -306,6 +308,29 @@ def get_embedding_ranks(pp_ranks: List[int]):
     return embedding_ranks
 
 
+def add_hybrid_cp_args(parser):
+    group = parser.add_argument_group(title="hybrid-cp")
+
+    group.add_argument('--profile-memory', action='store_true',
+                       default=False, help='Record memory info for analysis purpose. ')
+    group.add_argument('--profile-memory-path', type=str, default=None,
+                       help='filepath to saveRecord memory info. ')
+    group.add_argument('--master-addr', type=str, default='127.0.0.1:8389',
+                       help='master add.')
+    group.add_argument('--async-hybrid-context-parallel-scheduler', action='store_true',
+                       default=False, help='Use asynchronize context parallel scheduler to avoid scheduler execution and extra communication time. ')
+    group.add_argument('--run-memory-simulator', action='store_true',
+                       default=False, help='run memory simulator for pp scheduler. ')
+    group.add_argument('--search-space', nargs='+', type=int, default=[1,2,3,4,5,6],
+                       help='search space for `PipelineAwareBalancedHybridCPscheduler`, '
+                       'if only one param, it means the range of the search space.'
+                       'For example, 4 means choose PP*1, PP*2, PP*3, PP*4 to search.'
+                       'if more than one param, it means the selected number of microbatch to search.'
+                       'For example, [1,2,3,4] means choose PP*1, PP*2, PP*3, PP*4 to search'
+                       '[2,4] means only choose PP*2 and PP*4 to search.')
+    return parser
+
+
 if __name__ == "__main__":
 
     # Temporary for transition to core datasets
@@ -315,13 +340,24 @@ if __name__ == "__main__":
     # pretrain, store = inprocess_restart.maybe_wrap_for_inprocess_restart(pretrain)
     store = None
     # torch.cuda.memory._record_memory_history(max_entries=8000000)
+    soft_limit, hard_limit = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (hard_limit, hard_limit))
+
+    if "OMPI_COMM_WORLD_RANK" in os.environ:
+        sys.argv.extend([
+            "--local-rank", os.environ["OMPI_COMM_WORLD_LOCAL_RANK"],
+        ])
+        os.environ['RANK'] = os.environ['OMPI_COMM_WORLD_RANK']
+        os.environ['WORLD_SIZE'] = os.environ['OMPI_COMM_WORLD_SIZE']
+
     pretrain(
         train_valid_test_datasets_provider,
         partial(model_provider, gpt_builder),
         ModelType.encoder_or_decoder,
         forward_step,
         args_defaults={'tokenizer_type': 'GPT2BPETokenizer'},
-        extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
+        # extra_args_provider=add_modelopt_args if has_nvidia_modelopt else None,
+        extra_args_provider=add_hybrid_cp_args,
         store=store,
         get_embedding_ranks=get_embedding_ranks,
     )

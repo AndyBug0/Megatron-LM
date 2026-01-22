@@ -174,9 +174,6 @@ class MegatronSFTSampler(MegatronPretrainingSampler):
                 for i in range(self.num_micro_batches):
                     global_batch_idx.extend(batch[start_idx[i]:end_idx[i]])
                 yield global_batch_idx
-                # if torch.distributed.get_rank() == 0:
-                #     print(f"rank={torch.distributed.get_rank()}, {batch=}")
-                # yield batch
                 batch = []
 
         # Check the last partial batch and see drop_last is set
