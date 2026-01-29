@@ -30,8 +30,8 @@ PROFILE_MEMORY=0
 TRAIN_ITERS=10
 USE_MOCK_DATA=1
 MASTER_PORT=6103
-TP=1
-PP=8
+TP=2
+PP=4
 PP_l=
 MIN_CP=1
 MAX_CP=8
@@ -131,7 +131,8 @@ export HF_DATASETS_CACHE="${OUTPUT}/hf_datasets_cache"
 DATA_TRAIN="/home/tailaim/data/thd_formatted_100k.jsonl"
 
 CURRENT_DIR="$( cd "$( dirname "$0" )" && pwd )"
-MEGATRON_PATH=$( dirname ${CURRENT_DIR})
+MEGATRON_PATH=$(dirname $( dirname ${CURRENT_DIR}))
+
 
 # if [[ $DEBUG -eq 1 ]]; then
 #     MBZ=1
@@ -325,6 +326,8 @@ cat $HOSTFILE
 
 set -x
 
+ln -sf ../../gpt_builders.py $SCRIPT_DIR
+
 # mpirun --hostfile hostfile -np 24 cat $HOSTFILE
 
         # -x NVTE_DEBUG=1 \
@@ -369,7 +372,7 @@ mpirun --allow-run-as-root --noprefix \
         -x MASTER_ADDR=$MASTER_ADDR \
         -x MASTER_PORT=$MASTER_PORT \
         ${LD_LIBRARY_PATH:+-x LD_LIBRARY_PATH} \
-        -x PYTHONPATH:$MEGATRON_PATH:$PYTHONPATH \
+        -x PYTHONPATH=$SCRIPT_DIR:$MEGATRON_PATH:$PYTHONPATH \
         -x CUDA_DEVICE_MAX_CONNECTIONS \
         -x NCCL_IB_SL \
         -x TOKENIZERS_PARALLELISM \
@@ -380,7 +383,7 @@ mpirun --allow-run-as-root --noprefix \
         -x no_proxy=localhost,127.0.0.1,localaddress,localdomain.com,internal,corp.kuaishou.com,test.gifshow.com,staging.kuaishou.com \
     $PROFILE_WRAPPER \
     with_nccl_local_env \
-    python -u $MEGATRON_PATH/pretrain_gpt.py \
+    python -u $SCRIPT_DIR/pretrain_gpt.py \
         ${OPTIONS} \
         --distributed-backend nccl
 

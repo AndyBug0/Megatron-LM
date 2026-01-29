@@ -332,7 +332,6 @@ def add_hybrid_cp_args(parser):
 
 
 if __name__ == "__main__":
-
     # Temporary for transition to core datasets
     train_valid_test_datasets_provider.is_distributed = True
 

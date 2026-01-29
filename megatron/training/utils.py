@@ -695,7 +695,7 @@ def get_batch_on_this_tp_rank(
             1,
             dtype=torch.int32,
             device=torch.cuda.current_device(),
-        ) if args.hybrid_context_parallel else None
+        ) if args.hybrid_context_parallel and args.hybrid_context_parallel_scheduler == "hybrid_cp" else None
 
         def _broadcast_cu_seqlens():
             dev = torch.cuda.current_device()
@@ -710,19 +710,6 @@ def get_batch_on_this_tp_rank(
             _broadcast(cu_seqlens)
 
             return cu_seqlens if n > 0 else None
-
-        cu_seqlens = None
-        cu_seqlens_padded = None
-        max_seqlen = torch.empty(
-            1,
-            dtype=torch.int32,
-            device=torch.cuda.current_device(),
-        ) if args.sft_sequence_packing else None
-        local_cp_size = torch.empty(
-            1,
-            dtype=torch.int32,
-            device=torch.cuda.current_device(),
-        ) if args.hybrid_context_parallel else None
 
         if args.pipeline_model_parallel_size == 1 or mtp_on_this_rank:
             _broadcast(tokens)
@@ -788,7 +775,7 @@ def get_batch_on_this_tp_rank(
             'local_cp_size': local_cp_size,
         }
 
-    if args.sft_sequence_packing and not args.hybrid_context_parallel:
+    if args.sft_sequence_packing and ((not args.hybrid_context_parallel) or args.hybrid_context_parallel and args.hybrid_context_parallel_scheduler == "hybrid_cp"):
         # using THD(sequence packing) but not using hybrid-cp, 
         # so we need to pop the local_cp_size
         batch.pop('local_cp_size')
